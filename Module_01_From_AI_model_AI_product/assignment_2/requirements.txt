@@ -1,0 +1,12 @@
+pandas
+openpyxl
+python-dotenv
+pydantic
+openai
+tqdm
+langchain-community
+langchain-text-splitters
+ragas
+faiss-cpu
+pypdf
+sentence-transformers
