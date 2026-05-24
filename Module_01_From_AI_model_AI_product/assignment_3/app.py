@@ -70,34 +70,83 @@ def run_agent(user_input: str, session_id: str):
                 if not content:
                     continue
 
-                json_match = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)
-                if json_match:
-                    content = json_match.group(1).strip()
+                content = content.strip()
+
+                if content.startswith("```json"):
+                    content = re.sub(r"^```json\s*", "", content, flags=re.DOTALL)
+                    content = re.sub(r"\s*```$", "", content, flags=re.DOTALL)
+                elif content.startswith("```"):
+                    content = re.sub(r"^```\s*", "", content, flags=re.DOTALL)
+                    content = re.sub(r"\s*```$", "", content, flags=re.DOTALL)
 
                 try:
                     data = json.loads(content)
+
                     if "thought" in data:
                         steps.append(f"**Thought**: {data['thought']}")
+
                     if "tool" in data:
                         steps.append(
                             f"**Action**: `{data['tool']}` with args:\n```json\n{json.dumps(data.get('args', {}), indent=2)}\n```"
                         )
+
                     if "final_answer" in data:
                         final_answer = data["final_answer"]
+                        steps.append(f"**Final answer**: {data['final_answer']}")
+
                 except Exception:
-                    steps.append(f"**Raw model output**:\n```\n{getattr(last_msg, 'content', '')}\n```")
+                    raw_content = getattr(last_msg, "content", "") or ""
+
+                    thought_match = re.search(
+                        r'"thought"\s*:\s*"((?:\\.|[^"\\])*)"',
+                        raw_content,
+                        re.DOTALL
+                    )
+                    final_match = re.search(
+                        r'"final_answer"\s*:\s*"((?:\\.|[^"\\])*)"',
+                        raw_content,
+                        re.DOTALL
+                    )
+
+                    parsed_any = False
+
+                    if thought_match:
+                        thought_text = bytes(thought_match.group(1), "utf-8").decode("unicode_escape")
+                        steps.append(f"**Thought**: {thought_text}")
+                        parsed_any = True
+
+                    if final_match:
+                        answer_text = bytes(final_match.group(1), "utf-8").decode("unicode_escape")
+                        final_answer = answer_text
+                        steps.append(f"**Final answer**: {answer_text}")
+                        parsed_any = True
+
+                    if not parsed_any:
+                        steps.append(f"**Raw model output**:\n```\n{raw_content}\n```")
 
             elif node_name == "tools":
                 steps.append(f"**Observation**:\n```json\n{last_msg.content}\n```")
 
+            elif node_name == "profile_update":
+                content = getattr(last_msg, "content", None)
+                if content:
+                    final_answer = content
+
+            elif node_name == "memory_query":
+                content = getattr(last_msg, "content", None)
+                if content:
+                    final_answer = content
+
             elif node_name == "out_of_scope":
-                final_answer = getattr(last_msg, "content", "Out of scope.")
+                content = getattr(last_msg, "content", "Out of scope.")
+                final_answer = content
 
             elif node_name == "fallback":
-                final_answer = getattr(last_msg, "content", "Fallback triggered.")
+                content = getattr(last_msg, "content", "Fallback triggered.")
+                final_answer = content
 
-    if final_answer is None:
-        final_answer = "No final answer was produced."
+                if final_answer is None:
+                    final_answer = "No final answer was produced."
 
     return final_answer, steps
 
@@ -112,9 +161,10 @@ if prompt:
         with st.spinner("Thinking..."):
             answer, steps = run_agent(prompt, session_id)
         st.markdown(answer)
-        with st.expander("Reasoning steps", expanded=True):
-            for step in steps:
-                st.markdown(step)
+        if steps:
+            with st.expander("Reasoning steps"):
+                for step in steps:
+                    st.markdown(step)
 
     chat_history.append({
         "role": "assistant",

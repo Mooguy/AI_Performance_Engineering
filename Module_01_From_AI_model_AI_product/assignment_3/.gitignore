@@ -17,4 +17,4 @@ agent_memory.db
 .ipynb_checkpoints/
 
 # Data (if large — check your CSV size)
-data/*.csv
+data/*.csv*.ipynb

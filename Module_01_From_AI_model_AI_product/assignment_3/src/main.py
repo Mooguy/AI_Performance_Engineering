@@ -64,26 +64,65 @@ def run_interactive_cli():
                         if not content:
                             continue
 
-                        json_match = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)
-                        if json_match:
-                            content = json_match.group(1).strip()
+                        content = content.strip()
+
+                        if content.startswith("```json"):
+                            content = re.sub(r"^```json\s*", "", content, flags=re.DOTALL)
+                            content = re.sub(r"\s*```$", "", content, flags=re.DOTALL)
+                        elif content.startswith("```"):
+                            content = re.sub(r"^```\s*", "", content, flags=re.DOTALL)
+                            content = re.sub(r"\s*```$", "", content, flags=re.DOTALL)
 
                         try:
                             data = json.loads(content)
+
                             if "thought" in data:
                                 print(f"\n🧠 [Thought]: {data['thought']}")
                             if "tool" in data:
                                 print(f"⚙️  [Action]: Invoking tool '{data['tool']}' with args: {data.get('args')}")
                             if "final_answer" in data:
                                 print(f"\n🤖 Agent: {data['final_answer']}")
+
                         except Exception:
-                            print(f"\n📝 [Raw Response]: {last_msg.content}")
+                            raw_content = getattr(last_msg, "content", "") or ""
 
-                    elif node_name == "tools":
-                        print(f"📥 [Observation]: {last_msg.content}")
+                            thought_match = re.search(
+                                r'"thought"\s*:\s*"((?:\\.|[^"\\])*)"',
+                                raw_content,
+                                re.DOTALL
+                            )
+                            final_match = re.search(
+                                r'"final_answer"\s*:\s*"((?:\\.|[^"\\])*)"',
+                                raw_content,
+                                re.DOTALL
+                            )
 
-                    elif node_name == "extract_profile":
-                        continue
+                            printed_any = False
+
+                            if thought_match:
+                                thought_text = bytes(thought_match.group(1), "utf-8").decode("unicode_escape")
+                                print(f"\n🧠 [Thought]: {thought_text}")
+                                printed_any = True
+
+                            if final_match:
+                                answer_text = bytes(final_match.group(1), "utf-8").decode("unicode_escape")
+                                print(f"\n🤖 Agent: {answer_text}")
+                                printed_any = True
+
+                            if not printed_any:
+                                print(f"\n📝 [Raw Response]: {raw_content}")
+
+                    elif node_name == "profile_update":
+                        print(f"\n🤖 Agent: {last_msg.content}")
+
+                    elif node_name == "memory_query":
+                        print(f"\n🤖 Agent: {last_msg.content}")
+
+                    elif node_name == "out_of_scope":
+                        print(f"\n🤖 Agent: {last_msg.content}")
+
+                    elif node_name == "fallback":
+                        print(f"\n🤖 Agent: {last_msg.content}")
 
         except KeyboardInterrupt:
             print("\nSession interrupted gracefully.")

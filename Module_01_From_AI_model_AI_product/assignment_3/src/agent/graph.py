@@ -57,41 +57,39 @@ def react_agent_node(state: AgentState) -> dict:
     system_prompt = (
         "You are an expert Customer Service Data Analyst Agent operating on the Bitext dataset.\n"
         "Columns available: [flags, instruction, category, intent, response].\n\n"
-        "Available Tools:\n"
-        "- get_unique_values(column_name: str) -> List of distinct values ('category' or 'intent').\n"
-        "- get_row_count(category: str = None, intent: str = None) -> Row count match dict.\n"
-        "- get_sample_examples(category: str = None, intent: str = None, n_examples: int = 5) -> Data rows list.\n"
-        "- get_value_distribution(group_by_column: str, filter_column: str = None, filter_value: str = None) -> Metric dictionary.\n\n"
-        "OPERATIONAL DESIGN (ReAct Pattern):\n"
-        "You must reason step-by-step. To execute an action, output a single valid JSON block containing your thought and tool parameters. Do not output anything else outside this JSON markdown block.\n\n"
-        "INTENT DETECTION — BEFORE CALLING ANY TOOL:\n"
-        "First classify the user's message into one of these intents:\n"
-        "1. PROFILE_UPDATE: User is introducing themselves or stating preferences.\n"
-        "   Examples: 'my name is...', 'I prefer...', 'I like...', 'call me...'\n"
-        "   Action: Acknowledge warmly, confirm you have noted it. Output final_answer IMMEDIATELY. Do NOT call any tools.\n"
-        "2. MEMORY_QUERY: User is asking what you remember about them.\n"
-        "   Examples: 'who am I?', 'what do you know about me?', 'what do you remember?'\n"
-        "   Action: Answer using the known user context injected below. Output final_answer IMMEDIATELY. Do NOT call any tools.\n"
-        "3. DATA_QUERY: User is asking about the dataset.\n"
-        "   Action: Use the ReAct loop and tools below to answer.\n\n"
-        "If you need to call a tool, output exactly:\n"
+        "Available tools:\n"
+        "- get_unique_values(column_name: str)\n"
+        "- get_row_count(category: str = None, intent: str = None)\n"
+        "- get_sample_examples(category: str = None, intent: str = None, n_examples: int = 5)\n"
+        "- get_value_distribution(group_by_column: str, filter_column: str = None, filter_value: str = None)\n\n"
+        "Reason step by step.\n"
+        "If you need a tool, output exactly one JSON block in markdown fences and nothing else:\n"
         "```json\n"
         "{\n"
-        "  \"thought\": \"Detailed reasoning text explaining why this tool is selected.\",\n"
+        "  \"thought\": \"why this tool is needed\",\n"
         "  \"tool\": \"tool_name\",\n"
         "  \"args\": {\"param_name\": \"value\"}\n"
         "}\n"
         "```\n\n"
-        "Once you have gathered enough facts to confidently answer, output exactly:\n"
+        "If you have enough information, output exactly:\n"
         "```json\n"
         "{\n"
-        "  \"thought\": \"Detailed final reasoning text.\",\n"
-        "  \"final_answer\": \"Clear, friendly response answering the user query.\"\n"
+        "  \"thought\": \"final reasoning\",\n"
+        "  \"final_answer\": \"clear answer to the user\"\n"
         "}\n"
-        "```\n"
-        "CRITICAL: If an intent or category name is mentioned by the user but you don't know the exact naming convention, call get_unique_values first."
+        "```\n\n"
+        "Rules:\n"
+        "- Use tools whenever the answer depends on dataset contents.\n"
+        "- Do not invent category names, intent names, counts, examples, or distributions.\n"
+        "- If you are not sure about the exact category or intent naming, call get_unique_values first.\n"
+        "- Use get_row_count for counts.\n"
+        "- Use get_value_distribution for distributions or breakdowns.\n"
+        "- Use get_sample_examples when the user asks for examples.\n"
+        "- If the user asks for examples, lists, or items, return the actual items from the tool output in final_answer rather than summarizing them.\n"
+        "- Summarize only when the user explicitly asks for a summary, trend, or high-level explanation.\n"
         + profile_context
     )
+    
 
     messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
     response = llm.invoke(messages)
@@ -175,9 +173,17 @@ def handle_fallback_node(state: AgentState) -> dict:
 
 # --- Routing ---
 
-def route_after_classification(state: AgentState) -> Literal["call_model", "out_of_scope"]:
-    if state.get("query_type") == "out_of_scope":
+def route_after_classification(
+    state: AgentState
+) -> Literal["call_model", "profile_update", "memory_query", "out_of_scope"]:
+    query_type = state.get("query_type")
+
+    if query_type == "out_of_scope":
         return "out_of_scope"
+    if query_type == "profile_update":
+        return "profile_update"
+    if query_type == "memory_query":
+        return "memory_query"
     return "call_model"
 
 
@@ -195,6 +201,43 @@ def route_after_model(state: AgentState) -> Literal["tools", "fallback", "extrac
     
     return "extract_profile"
 
+def handle_profile_update_node(state: AgentState) -> dict:
+    return {
+        "messages": [
+            AIMessage(
+                content="Thanks — I’ve noted that about you and will use it to personalize future responses when relevant."
+            )
+        ]
+    }
+
+
+def handle_memory_query_node(state: AgentState) -> dict:
+    session_id = state.get("session_id") or ""
+    if not session_id:
+        return {
+            "messages": [
+                AIMessage(content="I don’t have a session ID, so I can’t retrieve anything I know about you yet.")
+            ]
+        }
+
+    profile = get_profile(db_conn, session_id)
+    if not profile:
+        return {
+            "messages": [
+                AIMessage(content="I don’t have any saved personal details about you yet.")
+            ]
+        }
+
+    parts = []
+    if profile.get("name"):
+        parts.append(f"Your name appears to be {profile['name']}.")
+    if profile.get("preferences"):
+        parts.append("Your preferences include: " + ", ".join(profile["preferences"]) + ".")
+    if profile.get("frequent_topics"):
+        parts.append("Topics you've discussed include: " + ", ".join(profile["frequent_topics"]) + ".")
+
+    content = " ".join(parts) if parts else "I don’t have any saved personal details about you yet."
+    return {"messages": [AIMessage(content=content)]}
 
 # --- Graph Assembly ---
 
@@ -206,6 +249,8 @@ workflow.add_node("tools",           execution_tools_node)
 workflow.add_node("extract_profile", profile_extraction_node)
 workflow.add_node("out_of_scope",    handle_out_of_scope_node)
 workflow.add_node("fallback",        handle_fallback_node)
+workflow.add_node("profile_update", handle_profile_update_node)
+workflow.add_node("memory_query", handle_memory_query_node)
 
 workflow.add_edge(START, "router")
 
@@ -214,6 +259,8 @@ workflow.add_conditional_edges(
     route_after_classification,
     {
         "out_of_scope": "out_of_scope",
+        "profile_update": "profile_update",
+        "memory_query": "memory_query",
         "call_model":   "call_model"
     }
 )
@@ -229,6 +276,8 @@ workflow.add_conditional_edges(
 )
 
 workflow.add_edge("tools",           "call_model")
+workflow.add_edge("profile_update", "extract_profile")
+workflow.add_edge("memory_query", END)
 workflow.add_edge("extract_profile", END)
 workflow.add_edge("out_of_scope",    END)
 workflow.add_edge("fallback",        END)

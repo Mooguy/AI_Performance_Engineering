@@ -2,51 +2,94 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
+
 from src.config import NEBIUS_API_KEY, NEBIUS_BASE_URL, DEFAULT_MODEL
 from src.agent.state import AgentState
 
+
 class RouterOutput(BaseModel):
-    """Schema for routing decisions."""
-    query_type: Literal["structured", "unstructured", "out_of_scope"] = Field(
-        description="Classification of the customer service data query."
-    )
-    reasoning: str = Field(
-        description="One-sentence explanation."
-    )
+    query_type: Literal[
+        "structured",
+        "unstructured",
+        "profile_update",
+        "memory_query",
+        "out_of_scope"
+    ] = Field(description="Classification of the incoming user request.")
+    reasoning: str = Field(description="One-sentence explanation.")
+
 
 def query_router_node(state: AgentState) -> dict:
-    """
-    Inspects the initial user message and routes it to the correct handling path.
-    Uses hardcoded keyword logic for critical dataset paths to bypass remote endpoint lockups.
-    """
-    # Find the earliest user message to capture the core intent
     user_query = ""
-    for msg in state["messages"]:
+    user_query = ""
+    for msg in reversed(state["messages"]):
         if isinstance(msg, HumanMessage):
             user_query = msg.content
             break
 
     if not user_query:
-        return {"query_type": "out_of_scope", "iterations": state.get("iterations", 0) + 1}
+        return {
+            "query_type": "out_of_scope",
+            "iterations": state.get("iterations", 0) + 1
+        }
 
-    query_lower = user_query.lower()
+    query_lower = user_query.lower().strip()
 
-    # --- Structural Keyword Override Rules ---
-    # Instantly routes unstructured summary text queries without reaching out to the network endpoint
-    if "summarize" in query_lower or "respond to" in query_lower or "how do agents" in query_lower or "how do customer service" in query_lower:
+    memory_patterns = [
+        "what do you know about me",
+        "what do you remember about me",
+        "what do you remember",
+        "who am i",
+        "tell me about me",
+        "what have you learned about me"
+    ]
+
+    profile_starts = [
+        "my name is",
+        "call me",
+        "i prefer",
+        "i like",
+        "i love",
+        "my favorite",
+        "please remember",
+        "remember that i",
+        "i usually",
+        "i work as",
+        "i work at"
+    ]
+
+    unstructured_patterns = [
+        "summarize", "respond to", "how do agents", "how do customer service"
+    ]
+
+    structured_patterns = [
+        "how many", "distribution", "examples of", "exist in",
+        "list", "show me", "count", "what categories", "what intents"
+    ]
+
+    if any(p in query_lower for p in memory_patterns):
+        return {
+            "query_type": "memory_query",
+            "iterations": state.get("iterations", 0) + 1
+        }
+
+    if any(p in query_lower for p in profile_starts):
+        return {
+            "query_type": "profile_update",
+            "iterations": state.get("iterations", 0) + 1
+        }
+
+    if any(p in query_lower for p in unstructured_patterns):
         return {
             "query_type": "unstructured",
             "iterations": state.get("iterations", 0) + 1
         }
-    
-    # Instantly routes structured data extraction requests
-    if "how many" in query_lower or "distribution" in query_lower or "examples of" in query_lower or "exist in" in query_lower:
+
+    if any(p in query_lower for p in structured_patterns):
         return {
             "query_type": "structured",
             "iterations": state.get("iterations", 0) + 1
         }
 
-    # --- LLM Fallback Classification ---
     try:
         llm = ChatOpenAI(
             model=DEFAULT_MODEL,
@@ -58,11 +101,13 @@ def query_router_node(state: AgentState) -> dict:
         structured_llm = llm.with_structured_output(RouterOutput)
 
         system_prompt = (
-            "You are an expert data analysis router. Analyze the user's input regarding a customer service dataset.\n"
-            "Classify into exactly one option:\n"
-            "1. 'structured': Looking for counts, unique values, listings, or statistics.\n"
-            "2. 'unstructured': Asking for semantic summaries, text syntheses, or common behaviors.\n"
-            "3. 'out-of-scope': Questions completely detached from analyzing this dataset."
+            "You are an expert router for a customer service dataset agent.\n"
+            "Classify the user's request into exactly one option:\n"
+            "1. 'profile_update' = user shares identity, preferences, habits, or personal facts.\n"
+            "2. 'memory_query' = user asks what you know or remember about them.\n"
+            "3. 'structured' = counts, unique values, listings, examples, distributions, statistics.\n"
+            "4. 'unstructured' = semantic summaries, trends, behavior analysis, text synthesis.\n"
+            "5. 'out_of_scope' = unrelated to the dataset or user memory."
         )
 
         decision = structured_llm.invoke([
@@ -71,7 +116,6 @@ def query_router_node(state: AgentState) -> dict:
         ])
         chosen_type = decision.query_type
     except Exception:
-        # Secure fallback if the endpoint experiences any connectivity errors
         chosen_type = "out_of_scope"
 
     return {
