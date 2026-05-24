@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables
+.env
+
+# Runtime artifacts
+agent_memory.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (if large — check your CSV size)
+data/*.csv
