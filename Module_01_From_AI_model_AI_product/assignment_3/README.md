@@ -36,3 +36,19 @@ asyncio.run(main())
 | `get_sample_examples` | Pull real data examples |
 | `get_value_distribution` | Distribution counts |
 | `filter_dataset` | Filter and return match summary |
+
+## Bonus A - Streamlit UI
+
+This project includes a Streamlit chat interface for the agent.
+
+### Run the app
+
+```bash
+streamlit run app.py
+```
+
+### Features
+
+- Chat interface for asking dataset questions
+- Visible reasoning steps, including tool calls and results
+- Sidebar session ID to switch between or resume conversations
