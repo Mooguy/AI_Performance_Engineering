@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "id": "mk8snodegroup-e00dgzd0ghe4fsj56k",
+    "parent_id": "mk8scluster-e00bjba1j23rtgt8t2",
+    "name": "gpu-nodes",
+    "resource_version": "1",
+    "created_at": "2026-05-30T07:25:49Z",
+    "updated_at": "2026-05-30T07:25:49Z"
+  },
+  "spec": {
+    "fixed_node_count": "2",
+    "template": {
+      "resources": {
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-16vcpu-64gb"
+      },
+      "boot_disk": {
+        "size_bytes": "107374182400",
+        "type": "NETWORK_SSD"
+      },
+      "network_interfaces": [
+        {
+          "public_ip_address": {},
+          "subnet_id": "vpcsubnet-e00pxkszfg9c7pqk7a"
+        }
+      ]
+    }
+  }
+}
