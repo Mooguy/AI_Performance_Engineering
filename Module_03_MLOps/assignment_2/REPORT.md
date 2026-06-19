@@ -93,6 +93,10 @@ Goal: hit P95 latency under 5 seconds at 5 RPS.
 
 SLO achieved. In the final 300-second run at 5 RPS, the system completed 1499/1500 requests successfully, achieved 4.96 RPS, and recorded P50 1.18s, P95 3.94s, P99 7.60s, with a maximum latency of 16.98s.
 
+### Note
+
+Phase 4 metadata tags weren't carry forward to Phase 6 tuning iterations. With more time, I'd tag each tuning run (e.g., `{"tuning_step": "max_seqs_48"}`) to correlate Langfuse traces with SLO improvements.
+
 ---
 
 ## Phase 7: What I'd Do With More Time
