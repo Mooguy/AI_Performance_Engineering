@@ -1,0 +1,75 @@
+python run_phase_3_evals.py 
+
+================================================================================
+📝 TEST 1/5 | Database: formula_1
+❓ Question: What is the average fastest lap time in seconds for Lewis Hamilton in all the Formula_1 races?
+--------------------------------------------------------------------------------
+🔄 Total Iterations required: 2
+
+🔍 AGENT THOUGHT PROCESS:
+  [1] 🛠️  GENERATE: Drafted initial SQL.
+       Query: SELECT AVG(CAST(SUBSTR(r.fastestLapTime, 1, 2) AS REAL) * 3600 +             CAST(SUBSTR(r.fastestLapTime, 4, 2) AS REAL) * 60 +             CAST(SUBSTR(r.fastestLapTime, 7, 2) AS REAL) +             CAST(SUBSTR(r.fastestLapTime, 10, 3) AS REAL) / 1000) AS average_fastest_lap_seconds FROM results r JOIN drivers d ON r.driverId = d.driverId WHERE LOWER(d.forename) = 'lewis' AND LOWER(d.surname) = 'hamilton'   AND r.fastestLapTime IS NOT NULL;
+  [2] ⚖️  VERIFY: ❌ FAILED
+       Issue spotted: The result is implausibly high. Fastest lap times in Formula 1 are typically around 1 minute (60 seconds), not 3929 seconds (~65 minutes). The SQL incorrectly converts the time string, likely due to improper parsing of the time format.
+  [3] 🔧 REVISE: Rewrote SQL based on verify feedback.
+       Query: SELECT AVG(CAST(SUBSTR(r.fastestLapTime, 1, 2) AS REAL) * 60 +             CAST(SUBSTR(r.fastestLapTime, 4, 2) AS REAL) +             CAST(SUBSTR(r.fastestLapTime, 7, 2) AS REAL) / 60 +             CAST(SUBSTR(r.fastestLapTime, 10, 3) AS REAL) / 1000) AS average_fastest_lap_seconds FROM results r JOIN drivers d ON r.driverId = d.driverId WHERE LOWER(d.forename) = 'lewis' AND LOWER(d.surname) = 'hamilton'   AND r.fastestLapTime IS NOT NULL;
+  [4] ⚖️  VERIFY: ✅ PASSED
+
+📊 FINAL RESULT:
+   ✅ Rows Returned: [[65.49001692047378]]
+
+================================================================================
+📝 TEST 2/5 | Database: formula_1
+❓ Question: What is the coordinates location of the circuits for Australian grand prix?
+--------------------------------------------------------------------------------
+🔄 Total Iterations required: 1
+
+🔍 AGENT THOUGHT PROCESS:
+  [1] 🛠️  GENERATE: Drafted initial SQL.
+       Query: SELECT c.lat, c.lng FROM circuits c JOIN races r ON c.circuitId = r.circuitId WHERE LOWER(r.name) = 'australian grand prix';
+  [2] ⚖️  VERIFY: ✅ PASSED
+
+📊 FINAL RESULT:
+   ✅ Rows Returned: [[-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617], [-34.9272, 138.617]]
+
+================================================================================
+📝 TEST 3/5 | Database: superhero
+❓ Question: List down Ajax's superpowers.
+--------------------------------------------------------------------------------
+🔄 Total Iterations required: 1
+
+🔍 AGENT THOUGHT PROCESS:
+  [1] 🛠️  GENERATE: Drafted initial SQL.
+       Query: SELECT sp.power_name FROM superhero s JOIN hero_power hp ON s.id = hp.hero_id JOIN superpower sp ON hp.power_id = sp.id WHERE LOWER(s.superhero_name) = 'ajax';
+  [2] ⚖️  VERIFY: ✅ PASSED
+
+📊 FINAL RESULT:
+   ✅ Rows Returned: [['Agility'], ['Super Strength'], ['Super Speed'], ['Heat Generation'], ['Power Suit']]
+
+================================================================================
+📝 TEST 4/5 | Database: california_schools
+❓ Question: List the top five schools, by descending order, from the highest to the lowest, the most number of Enrollment (Ages 5-17). Please give their NCES school identification number.
+--------------------------------------------------------------------------------
+🔄 Total Iterations required: 1
+
+🔍 AGENT THOUGHT PROCESS:
+  [1] 🛠️  GENERATE: Drafted initial SQL.
+       Query: SELECT s.NCESSchool FROM schools s JOIN frpm f ON s.CDSCode = f.CDSCode ORDER BY f."Enrollment (Ages 5-17)" DESC LIMIT 5;
+  [2] ⚖️  VERIFY: ✅ PASSED
+
+📊 FINAL RESULT:
+   ✅ Rows Returned: [['11707'], ['04653'], ['08283'], ['02751'], ['03050']]
+
+================================================================================
+📝 TEST 5/5 | Database: financial
+❓ Question: How many male clients in 'Hl.m. Praha' district?
+--------------------------------------------------------------------------------
+🔄 Total Iterations required: 1
+
+🔍 AGENT THOUGHT PROCESS:
+  [1] 🛠️  GENERATE: Drafted initial SQL.
+       Query: SELECT COUNT(*)  FROM client c JOIN district d ON c.district_id = d.district_id WHERE LOWER(c.gender) = 'm'    AND LOWER(d.A2) = 'hl.m. praha';
+  [2] ⚖️  VERIFY: ✅ PASSED
+
+📊 FINAL RESULT:
+   ✅ Rows Returned: [[339]]

@@ -1,0 +1,6 @@
+!results/
+!results/**
+!screenshots/
+!screenshots/**
+!evals/eval_set.jsonl
+!infra/grafana/provisioning/dashboards/serving.json
