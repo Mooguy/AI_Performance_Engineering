@@ -23,10 +23,10 @@ from agent.graph import AgentState, graph  # noqa: E402
 # are NOT swallowed - a misconfigured Langfuse should not silently
 # produce zero traces.
 _lf_handler: Any = None
-# if os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY"):
-#     from langfuse.langchain import CallbackHandler
+if os.environ.get("LANGFUSE_PUBLIC_KEY") and os.environ.get("LANGFUSE_SECRET_KEY"):
+    from langfuse.langchain import CallbackHandler
 
-#     _lf_handler = CallbackHandler()
+    _lf_handler = CallbackHandler()
 
 
 app = FastAPI()
