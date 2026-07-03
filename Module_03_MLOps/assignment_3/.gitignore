@@ -1,0 +1,8 @@
+logs/
+mlruns/
+mlflow.db
+mlflow-data/
+trajectory.json
+__pycache__/
+*.pyc
+.venv/
